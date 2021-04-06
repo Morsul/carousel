@@ -1,0 +1,24 @@
+body {
+  margin: 0;
+}
+
+.carousel {
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.carousel-wrap ul {
+  padding: 0;
+  margin: 0;
+  transition: all 0.3s ease;
+}
+.carousel-wrap .no-animation {
+  transition: none;
+}
+.carousel-wrap li {
+  float: left;
+  list-style: none;
+  height: 100px;
+}
