@@ -1,246 +1,264 @@
-import React, { Component } from "react";
+import React, { useEffect, useState } from "react";
 
-export default class CarouselApp extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      ...this.props,
-      carouselElement: [],
-      curPos: 0,
-      stoptAnimation: false,
-      timeout: null,
-      shiftX: 0,
-      error_msg: "",
-    };
+export { CarouselApp };
 
-    this.goToRef = React.createRef();
-    this.carouselRef = React.createRef();
-  }
+function CarouselApp(props) {
+  const setting = props.config;
 
-  tsX;
+  const [carouselState, chagneCarouselState] = useState({
+    curPos: 0,
+    stoptAnimation: false,
+  });
+  const [carouselElement, setCarouselElement] = useState([]);
+  const goToElement = React.createRef();
+  const errorGoTo = React.createRef();
+  const carouselRef = React.createRef();
 
-  componentDidMount() {
-    let children = this.props.children.props.children;
+  const elemWidth =
+    setting.carouselElementMargin * 2 + setting.carouselElementWidth;
+  let transitionStartX = null;
+  let shiftX = 0;
 
-    this.setState({
-      carouselElement: [...children].map((el) => el.props.children),
-    });
-  }
+  useEffect(() => {
+    const children = props.children.props.children;
 
-  clearTimeout = () => {
-    if (this.state.timeout) {
-      clearTimeout(this.state.timeout);
-      this.setState({ timeout: null });
+    setCarouselElement([...children].map((el) => el.props.children));
+  }, []);
+
+  useEffect(() => {
+    if (
+      carouselState.curPos === carouselElement.length &&
+      carouselState.stoptAnimation
+    ) {
+      chagneCarouselState({
+        curPos: carouselState.curPos - 1,
+        stoptAnimation: false,
+      });
+    } else if (carouselState.curPos < 0 && carouselState.stoptAnimation) {
+      chagneCarouselState({
+        curPos: carouselState.curPos + 1,
+        stoptAnimation: false,
+      });
     }
+  });
+  const getShownElementCount = () => {
+    return Math.ceil(
+      (window.innerWidth - setting.carouselElementMargin * 2) / elemWidth
+    );
   };
 
-  shownElementCount(elemWidth) {
-    return Math.ceil(
-      (window.innerWidth - this.state.carouselElementMargin * 2) / elemWidth
-    );
-  }
-
-  carouselWidth(elemWidth, mShownElementCount, elementcount) {
-    if (elementcount < mShownElementCount) {
-      return elementcount * elemWidth;
+  const carouselWidth = (mShownElementCount, elementCount) => {
+    if (
+      elementCount < mShownElementCount &&
+      setting.carouselElementShown === 0
+    ) {
+      return elementCount * elemWidth;
     } else if (
-      this.state.carouselElementShown >= mShownElementCount ||
-      this.state.carouselElementShown === 0
+      setting.carouselElementShown >= mShownElementCount ||
+      setting.carouselElementShown === 0
     ) {
       return "auto";
     } else {
-      return this.state.carouselElementShown * elemWidth;
+      return setting.carouselElementShown * elemWidth;
     }
-  }
+  };
 
-  stepLeft = () => {
-    this.clearTimeout();
-    const isOverflow = this.state.curPos - 1 < 0;
+  const stepLeft = () => {
+    const isOverflow = carouselState.curPos - 1 < 0;
 
     if (isOverflow) {
-      this.setState({
-        curPos: this.state.carouselElement.length,
+      chagneCarouselState({
+        curPos: carouselElement.length,
         stoptAnimation: true,
-        timeout: setTimeout(() => this.stepLeft(), 50),
       });
     } else {
-      this.setState({
-        curPos: this.state.curPos - 1,
+      chagneCarouselState({
+        curPos: carouselState.curPos - 1,
         stoptAnimation: false,
       });
     }
   };
 
-  stepRight = () => {
-    this.clearTimeout();
-    const isOverflow =
-      this.state.curPos + 1 > this.state.carouselElement.length - 1;
+  const stepRight = () => {
+    const isOverflow = carouselState.curPos + 1 > carouselElement.length - 1;
 
     if (isOverflow) {
-      this.setState({
+      chagneCarouselState({
         curPos: -1,
         stoptAnimation: true,
-        timeout: setTimeout(() => this.stepRight(), 50),
       });
     } else {
-      this.setState({
-        curPos: this.state.curPos + 1,
+      chagneCarouselState({
+        curPos: carouselState.curPos + 1,
         stoptAnimation: false,
       });
     }
   };
 
-  changeShift = (event) => {
-    const eleWidth =
-      this.state.carouselElementMargin * 2 + this.state.carouselElementWidth;
-
-    if (event.type === "touchstart") {
-      this.tsX = event.touches[0].clientX;
-    } else if (event.type === "touchmove") {
-      let moveDir = event.touches[0].clientX - this.tsX;
-
-      this.setState({
-        shiftX: moveDir,
-      });
+  const onShiftStart = (event) => {
+    if (event.touches) {
+      transitionStartX = event.touches[0].pageX;
+      carouselRef.current.addEventListener("touchmove", onShift);
     } else {
-      let shiftChange = this.state.shiftX / eleWidth;
-      let curPos = this.state.curPos;
-      let newPos = curPos - Math.ceil(shiftChange);
-      let carouselElementCount = this.state.carouselElement.length;
-
-      if (newPos < 0) {
-        newPos = newPos + carouselElementCount;
-      } else if (newPos > carouselElementCount - 1) {
-        newPos = newPos - carouselElementCount;
-      }
-
-      this.setState({
-        curPos: newPos,
-        shiftX: 0,
-      });
+      transitionStartX = event.clientX;
+      carouselRef.current.addEventListener("mousemove", onShift);
+      carouselRef.current.addEventListener("mouseleave", onShiftEnd);
     }
   };
 
-  goToPos = () => {
-    const inputVal = this.goToRef.current.value;
-    const elementCount = this.state.carouselElement.length;
+  const onShift = (event) => {
+    if (transitionStartX) {
+      carouselRef.current.classList.add("swipe");
+      !event.touches ? event.preventDefault() : null;
+      const currentPositionX = event.touches
+        ? event.touches[0].pageX
+        : event.clientX;
+      shiftX = currentPositionX - transitionStartX;
+      carouselRef.current.style.transform = setXPos();
+    }
+  };
+
+  const onShiftEnd = (event) => {
+    const shiftChange = shiftX / elemWidth;
+    carouselRef.current.classList.remove("swipe");
+
+    if (event.touches) {
+      carouselRef.current.removeEventListener("touchmove", onShift);
+    } else {
+      carouselRef.current.removeEventListener("mousemove", onShift);
+      carouselRef.current.removeEventListener("mouseleave", onShiftEnd);
+    }
+
+    let newPos =
+      carouselState.curPos -
+      (shiftChange > 0 ? Math.ceil(shiftChange) : Math.floor(shiftChange));
+    const carouselElementCount = carouselElement.length;
+
+    if (newPos < 0) {
+      newPos = newPos + carouselElementCount;
+    } else if (newPos > carouselElementCount - 1) {
+      newPos = newPos - carouselElementCount;
+    }
+
+    chagneCarouselState({
+      ...carouselState,
+      curPos: newPos,
+    });
+    transitionStartX = null;
+    shiftX = 0;
+  };
+
+  const setXPos = () => {
+    const currentX = -(carouselState.curPos + 1) * elemWidth + shiftX;
+    return "translateX(" + currentX + "px)";
+  };
+
+  const goToPos = () => {
+    const inputVal = goToElement.current.value;
+    const elementCount = carouselElement.length;
 
     if (inputVal.length > 0 && !isNaN(inputVal)) {
       if (inputVal <= elementCount && inputVal > 0) {
-        this.setState({
+        chagneCarouselState({
+          ...carouselState,
           curPos: inputVal - 1,
-          error_msg: "",
         });
+        errorGoTo.current.innerHTML = "";
       } else {
-        this.setState({
-          error_msg: "Number is not in range",
-        });
+        errorGoTo.current.innerHTML = "Number is not in range";
       }
     } else {
-      this.setState({
-        error_msg: "Wrong value, should be a positive number",
-      });
+      errorGoTo.current.innerHTML = "Wrong value, should be a positive number";
     }
   };
 
-  setXPos() {
-    return (
-      -(this.state.curPos + 1) *
-        (this.state.carouselElementWidth +
-          this.state.carouselElementMargin * 2) +
-      this.state.shiftX
-    );
-  }
-
-  render() {
-    let carouselElement = this.state.carouselElement;
-
-    if (carouselElement.length > 0) {
-      let transition;
-      let mNewElementList = [...carouselElement];
-      const elemWidth =
-        this.state.carouselElementMargin * 2 + this.state.carouselElementWidth;
-      const mShownElementCount = this.shownElementCount(elemWidth);
-      const isOverSized = carouselElement.length >= mShownElementCount;
-
-      if (isOverSized) {
-        for (let i = 0; i < mShownElementCount; i++) {
-          mNewElementList.push(carouselElement[i]);
-        }
-        mNewElementList.unshift(carouselElement[carouselElement.length - 1]);
-
-        transition = "translateX(" + this.setXPos() + "px)";
-      } else {
-        transition = "translateX(0px)";
-      }
-
-      const mWSize = this.carouselWidth(
-        elemWidth,
-        mShownElementCount,
-        mNewElementList.length
-      );
-
-      return (
-        <div className="carousel-wrap">
-          <div
-            className="carousel"
-            style={{
-              width: mWSize,
-            }}
-          >
-            <ul
-              ref={this.carouselRef}
-              className={this.state.stoptAnimation ? "no-animation" : ""}
-              style={{
-                height: this.state.carouselHeight,
-                width: mNewElementList.length * elemWidth,
-                transform: transition,
-              }}
-              onTouchStart={this.changeShift}
-              onTouchMove={this.changeShift}
-              onTouchEnd={this.changeShift}
-            >
-              {mNewElementList.map((element, index) => (
-                <li
-                  key={index.toString()}
-                  style={{
-                    width: this.state.carouselElementWidth,
-                    height: this.state.carouselElementHeight,
-                    margin: this.state.carouselElementMargin,
-                  }}
-                >
-                  {element}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div
-            className="carousel-nav"
-            style={{
-              display: isOverSized ? "block" : "none",
-            }}
-          >
-            <button className="button-left" onClick={this.stepLeft}>
-              move left
-            </button>
-            <button className="button-right" onClick={this.stepRight}>
-              move right
-            </button>
-
-            <p className="curposinfo">
-              Curent position {this.state.curPos + 1} of{" "}
-              {carouselElement.length} elements
-            </p>
-            <p className="error">{this.state.error_msg}</p>
-            <input type="text" ref={this.goToRef} />
-
-            <button onClick={this.goToPos}>Move to</button>
-          </div>
-        </div>
-      );
+  const getOversized = () => {
+    if (
+      carouselElement.length < shownElementCount &&
+      setting.carouselElementShown > carouselElement.length
+    ) {
+      return false;
     } else {
-      return <div>Rendering</div>;
+      return true;
     }
+  };
+  const shownElementCount = getShownElementCount();
+  const isOverSized = getOversized();
+
+  if (carouselElement.length > 0) {
+    const newElementList = [...carouselElement];
+
+    if (isOverSized) {
+      for (let i = 0; i < shownElementCount; i++) {
+        newElementList.push(carouselElement[i]);
+      }
+      newElementList.unshift(carouselElement[carouselElement.length - 1]);
+    }
+
+    const transition = isOverSized ? setXPos() : "translateX(0px)";
+    const mWSize = carouselWidth(shownElementCount, newElementList.length);
+
+    return (
+      <div className="carousel-wrap">
+        <div
+          className="carousel"
+          style={{
+            width: mWSize,
+          }}
+        >
+          <ul
+            ref={carouselRef}
+            className={carouselState.stoptAnimation ? "no-animation" : ""}
+            style={{
+              height: setting.carouselHeight,
+              width: newElementList.length * elemWidth,
+              transform: transition,
+            }}
+            onTouchStart={isOverSized ? onShiftStart : undefined}
+            onMouseDown={isOverSized ? onShiftStart : undefined}
+            onTouchEnd={isOverSized ? onShiftEnd : undefined}
+            onMouseUp={isOverSized ? onShiftEnd : undefined}
+          >
+            {newElementList.map((element, index) => (
+              <li
+                key={index.toString()}
+                style={{
+                  width: setting.carouselElementWidth,
+                  height: setting.carouselElementHeight,
+                  margin: setting.carouselElementMargin,
+                }}
+              >
+                {element}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div
+          className="carousel-nav"
+          style={{
+            display: isOverSized ? "block" : "none",
+          }}
+        >
+          <button className="button-left" onClick={() => stepLeft()}>
+            move left
+          </button>
+          <button className="button-right" onClick={() => stepRight()}>
+            move right
+          </button>
+
+          <p className="curposinfo">
+            Curent position {carouselState.curPos + 1} of{" "}
+            {carouselElement.length} elements
+          </p>
+          <p className="error" ref={errorGoTo}></p>
+          <input type="text" ref={goToElement} />
+
+          <button onClick={() => goToPos()}>Move to</button>
+        </div>
+      </div>
+    );
+  } else {
+    return <div>Rendering</div>;
   }
 }

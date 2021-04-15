@@ -1,6 +1,6 @@
 import React from "react";
 
-let defaultProps = {
+const defaultProps = {
   carouselElementWidth: 100,
   carouselElementHeight: 100,
   carouselElementMargin: 2,
